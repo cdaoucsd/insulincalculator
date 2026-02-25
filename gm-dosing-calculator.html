@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GM Rx Dosing Calculator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #eef2f7;
+      color: #1a2332;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #0f2a4a 0%, #1a3a5c 100%);
+      color: white;
+      padding: 18px 28px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .header-logo {
+      width: 44px; height: 44px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .header-text h1 { font-size: 1.15rem; font-weight: 700; line-height: 1.2; }
+    .header-text p  { font-size: 0.72rem; opacity: 0.75; margin-top: 2px; }
+    .golive-badge {
+      margin-left: auto;
+      background: #e67e22;
+      color: white;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    /* ── Layout ── */
+    .main { max-width: 1060px; margin: 0 auto; padding: 24px 16px 48px; }
+
+    .disclaimer {
+      background: #fff8e1;
+      border: 1px solid #ffcc02;
+      border-left: 4px solid #f59e0b;
+      border-radius: 8px;
+      padding: 11px 16px;
+      font-size: 0.79rem;
+      color: #78450a;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 22px 24px;
+      margin-bottom: 18px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    }
+    .card-title {
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #1a3a5c;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 18px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e8f0fe;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title .icon { font-size: 1rem; }
+
+    /* ── Form Grid ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .form-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #4a5568;
+      letter-spacing: 0.02em;
+    }
+    .field input, .field select {
+      border: 1.5px solid #cbd5e0;
+      border-radius: 7px;
+      padding: 9px 12px;
+      font-size: 0.88rem;
+      color: #1a2332;
+      background: #fafbfc;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      width: 100%;
+    }
+    .field input:focus, .field select:focus {
+      outline: none;
+      border-color: #1a3a5c;
+      box-shadow: 0 0 0 3px rgba(26,58,92,0.1);
+      background: white;
+    }
+    .field-note { font-size: 0.69rem; color: #a0aec0; }
+
+    .calc-btn {
+      background: linear-gradient(135deg, #1a3a5c, #0f2a4a);
+      color: white;
+      border: none;
+      padding: 13px 24px;
+      border-radius: 8px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      transition: opacity 0.15s, transform 0.1s;
+      letter-spacing: 0.02em;
+    }
+    .calc-btn:hover  { opacity: 0.9; }
+    .calc-btn:active { transform: scale(0.99); }
+
+    /* ── Alert boxes ── */
+    .alert {
+      border-radius: 8px;
+      padding: 11px 14px;
+      font-size: 0.82rem;
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+    .alert-danger  { background: #fce4ec; border-left: 4px solid #e91e63; color: #7b1034; }
+    .alert-warning { background: #fff3e0; border-left: 4px solid #ff9800; color: #7a3f00; }
+    .alert-info    { background: #e3f2fd; border-left: 4px solid #2196f3; color: #0d3c6b; }
+    .alert-success { background: #e8f5e9; border-left: 4px solid #43a047; color: #1b5e20; }
+    .alert-purple  { background: #f3e5f5; border-left: 4px solid #9c27b0; color: #4a0072; }
+
+    /* ── Result two-col layout ── */
+    .result-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .stat-card {
+      border-radius: 10px;
+      padding: 16px 18px;
+      border: 1.5px solid #e2e8f0;
+    }
+    .stat-card .sc-label { font-size: 0.68rem; font-weight: 800; color: #718096; text-transform: uppercase; letter-spacing: 0.06em; }
+    .stat-card .sc-value { font-size: 2rem; font-weight: 800; line-height: 1.1; margin-top: 4px; }
+    .stat-card .sc-sub   { font-size: 0.73rem; color: #718096; margin-top: 5px; line-height: 1.4; }
+
+    .stat-high     { background: #fff8e1; border-color: #ffe082; }
+    .stat-high .sc-value { color: #e65100; }
+    .stat-standard { background: #e8f5e9; border-color: #a5d6a7; }
+    .stat-standard .sc-value { color: #2e7d32; }
+    .stat-low      { background: #e3f2fd; border-color: #90caf9; }
+    .stat-low .sc-value { color: #1565c0; }
+    .stat-custom   { background: #f3e5f5; border-color: #ce93d8; }
+    .stat-custom .sc-value { color: #6a1b9a; }
+    .stat-neutral  { background: #f7fafc; border-color: #e2e8f0; }
+    .stat-neutral .sc-value { color: #1a3a5c; }
+
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+
+    .adj-table th {
+      background: #f7fafc;
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 0.72rem;
+      color: #4a5568;
+      font-weight: 700;
+      border-bottom: 2px solid #e2e8f0;
+      letter-spacing: 0.03em;
+    }
+    .adj-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #f0f4f8;
+      vertical-align: middle;
+    }
+    .adj-table tr.hl-row td {
+      background: #ebf4ff;
+      font-weight: 700;
+      color: #1a3a5c;
+    }
+    .adj-table tr.hl-row td:first-child { border-left: 3px solid #1a3a5c; }
+
+    .bolus-table th {
+      background: #1a3a5c;
+      color: white;
+      padding: 9px 10px;
+      text-align: center;
+      font-size: 0.73rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+    .bolus-table td {
+      padding: 8px 10px;
+      text-align: center;
+      border: 1px solid #e2e8f0;
+      color: #2d3748;
+    }
+    .bolus-table tbody tr:nth-child(even) td { background: #f7fafc; }
+    .bolus-table td.hl { background: #1a3a5c !important; color: white !important; font-weight: 800; border-radius: 4px; }
+    .bolus-table td.hl-row-only { background: #ebf4ff !important; font-weight: 700; }
+    .bolus-table td.hl-col-only { background: #e8f5e9 !important; font-weight: 700; }
+
+    .table-note { font-size: 0.71rem; color: #a0aec0; margin-top: 8px; }
+
+    /* ── Dose result strip ── */
+    .dose-strip {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .dose-box {
+      border-radius: 10px;
+      padding: 16px 18px;
+      border: 1.5px solid #e2e8f0;
+      text-align: center;
+    }
+    .dose-box .db-label { font-size: 0.68rem; font-weight: 800; color: #718096; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .dose-box .db-value { font-size: 1.9rem; font-weight: 800; line-height: 1.1; }
+    .dose-box .db-unit  { font-size: 0.75rem; color: #718096; margin-top: 3px; }
+    .dose-box-current   { background: #f7fafc; }
+    .dose-box-current .db-value { color: #4a5568; }
+    .dose-box-new       { background: #e8f5e9; border-color: #a5d6a7; }
+    .dose-box-new .db-value { color: #2e7d32; }
+    .dose-box-new-dec   { background: #fff3e0; border-color: #ffcc80; }
+    .dose-box-new-dec .db-value { color: #e65100; }
+    .dose-arrow {
+      font-size: 1.5rem;
+      color: #a0aec0;
+      text-align: center;
+      font-weight: 300;
+    }
+    .context-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #e3f2fd;
+      border: 1px solid #90caf9;
+      color: #0d3c6b;
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .context-badge.basal { background: #f3e5f5; border-color: #ce93d8; color: #4a0072; }
+
+    /* ── adj-table dimmed column ── */
+    .adj-table td.dim { color: #c0ccd8; }
+    .adj-table th.dim { color: #b0bec5; }
+
+    /* ── Result section hidden by default ── */
+    #results { display: none; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .form-grid, .form-grid-2, .result-row { grid-template-columns: 1fr; }
+      .header { padding: 14px 16px; }
+      .main { padding: 16px 10px 40px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<div class="header">
+  <div class="header-logo">💊</div>
+  <div class="header-text">
+    <h1>Glycemic Management Rx Dosing Calculator</h1>
+    <p>Department of Pharmacy · Pharmacist Clinical Decision Support · For Adult Inpatients Only</p>
+  </div>
+  <div class="golive-badge">GO LIVE MARCH 17, 2026</div>
+</div>
+
+<div class="main">
+
+  <div class="disclaimer">
+    ⚠️ <strong>Clinical Judgment Required.</strong> This tool provides dosing guidance per the CSMC GM Rx Dosing Policy. All recommendations must be considered alongside the patient's clinical condition and are not intended to supersede clinical judgment. This tool does not apply to patients with active endocrinology consult, insulin pump therapy, pregnancy, hospice, IV insulin infusion, or TPN.
+  </div>
+
+  <!-- ── INPUT CARD ── -->
+  <div class="card">
+    <div class="card-title"><span class="icon">🧑‍⚕️</span> Patient Parameters</div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label>Blood Glucose (mg/dL)</label>
+        <input type="number" id="bg" placeholder="e.g. 215" min="20" max="700" />
+      </div>
+      <div class="field">
+        <label>Age (years)</label>
+        <input type="number" id="age" placeholder="e.g. 68" min="18" max="120" />
+      </div>
+      <div class="field">
+        <label>eGFR (mL/min/1.73m²)</label>
+        <input type="number" id="egfr" placeholder="e.g. 45" min="1" max="120" />
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label>HgbA1c</label>
+        <select id="hgba1c">
+          <option value="">— Select if available —</option>
+          <option value="lt7">&lt;7%</option>
+          <option value="7to8">7–8%</option>
+          <option value="8to9">8–9%</option>
+          <option value="gt9">&gt;9%</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>BG Reading Context</label>
+        <select id="meal_ctx">
+          <option value="morning_fasting">Morning Fasting</option>
+          <option value="lunch">Pre-Lunch</option>
+          <option value="dinner">Pre-Dinner</option>
+          <option value="bedtime">Bedtime</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Carbohydrates Consumed (g)</label>
+        <input type="number" id="carbs" placeholder="e.g. 45 (leave blank if NPO)" min="0" max="300" />
+        <span class="field-note">Used for bolus lispro recommendation</span>
+      </div>
+    </div>
+
+    <div class="form-grid-2" style="margin-bottom:16px;">
+      <div class="field">
+        <label>Current Basal Insulin Dose (units/day)</label>
+        <input type="number" id="basal_dose" placeholder="e.g. 20" min="0" max="300" />
+        <span class="field-note">Used to calculate adjusted dose from Morning Fasting BG</span>
+      </div>
+      <div class="field">
+        <label>Current Bolus Insulin Dose (units/dose)</label>
+        <input type="number" id="bolus_dose" placeholder="e.g. 6" min="0" max="100" />
+        <span class="field-note">Used to calculate adjusted dose from Pre-meal / Bedtime BG</span>
+      </div>
+    </div>
+
+    <div class="form-grid-2" style="margin-bottom:20px;">
+      <div class="field">
+        <label>Correction Scale Intensity</label>
+        <select id="intensity_override">
+          <option value="auto">Auto — determined by age &amp; eGFR</option>
+          <option value="high">High (1 unit / 20–30 mg/dL)</option>
+          <option value="standard">Standard (1 unit / 30–40 mg/dL)</option>
+          <option value="low">Low (1 unit / 50–60 mg/dL)</option>
+          <option value="custom_low">Custom Low — age &gt;70 or eGFR &lt;35</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Special Considerations</label>
+        <select id="special">
+          <option value="none">None</option>
+          <option value="icu">ICU / Critically Ill</option>
+          <option value="steroids">On Corticosteroids</option>
+          <option value="liver">Hepatic Impairment</option>
+          <option value="hf">Heart Failure</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="calc-btn" onclick="calculate()">⚡ Calculate Dosing Recommendations</button>
+  </div>
+
+  <!-- ── RESULTS ── -->
+  <div id="results">
+
+    <!-- Flags / Clinical Alerts -->
+    <div id="alerts-wrap"></div>
+
+    <!-- Correction Scale -->
+    <div class="card">
+      <div class="card-title"><span class="icon">💉</span> Correction Scale Insulin — Table 2</div>
+      <div id="correction-content"></div>
+    </div>
+
+    <!-- Insulin Adjustment -->
+    <div class="card">
+      <div class="card-title"><span class="icon">🔄</span> Insulin Dose Adjustment — Table 1</div>
+      <div id="adjustment-content"></div>
+    </div>
+
+    <!-- Bolus -->
+    <div id="bolus-card" class="card" style="display:none;">
+      <div class="card-title"><span class="icon">🍽️</span> Bolus Insulin Lispro — Carb-Based Dosing (Table 4)</div>
+      <div id="bolus-content"></div>
+    </div>
+
+  </div><!-- /results -->
+
+</div><!-- /main -->
+
+<script>
+/* ─────────────────────────────────────────
+   DATA TABLES (from GM Rx Dosing Policy)
+───────────────────────────────────────── */
+const BOLUS_TABLE = {
+  // [chog_15, chog_30, chog_45, chog_60, chog_75, chog_90]
+  lt7:  ['1–2', '2–3', '3–4', '4–5', '5–6', '6–8'],
+  '7to8': ['2–3', '3–4', '4–6', '6–8', '8–9', '9–11'],
+  '8to9': ['3–4', '4–6', '6–8', '8–10', '10–12', '12–14'],
+  gt9:  ['4–5', '6–8', '8–10', '10–12', '12–15', '15–18'],
+};
+const CARB_ROWS = [15, 30, 45, 60, 75, 90];
+
+const ADJ_ROWS = [
+  { label: '< 70 mg/dL',    basal: '↓ Decrease by 2–4 units', bolus: '↓ Decrease by 1–2 units', test: bg => bg < 70 },
+  { label: '70–100 mg/dL',  basal: '— No change',             bolus: '↓ Decrease by 0–1 units', test: bg => bg >= 70 && bg <= 100 },
+  { label: '101–150 mg/dL', basal: '↑ Increase by 2–4 units', bolus: '— No change',              test: bg => bg >= 101 && bg <= 150 },
+  { label: '151–200 mg/dL', basal: '↑ Increase by 4–6 units', bolus: '↑ Increase by 1–2 units',  test: bg => bg >= 151 && bg <= 200 },
+  { label: '> 200 mg/dL',   basal: '↑ Increase by 6–10 units',bolus: '↑ Increase by 2–4 units',  test: bg => bg > 200 },
+];
+
+/* ─────────────────────────────────────────
+   HELPERS
+───────────────────────────────────────── */
+function mealLabel(v) {
+  return { morning_fasting:'Morning Fasting', lunch:'Pre-Lunch', dinner:'Pre-Dinner', bedtime:'Bedtime', other:'Other' }[v] || v;
+}
+function a1cLabel(v) {
+  return { lt7:'<7%', '7to8':'7–8%', '8to9':'8–9%', gt9:'>9%' }[v] || '—';
+}
+function findCarbIdx(carbs) {
+  // nearest row within ±12 g
+  let best = -1, bestDist = Infinity;
+  CARB_ROWS.forEach((c,i) => {
+    const d = Math.abs(carbs - c);
+    if (d < bestDist) { bestDist = d; best = i; }
+  });
+  return bestDist <= 12 ? best : -1;
+}
+
+/* ─────────────────────────────────────────
+   MAIN CALCULATE
+───────────────────────────────────────── */
+function calculate() {
+  const bg        = parseFloat(document.getElementById('bg').value);
+  const age       = parseFloat(document.getElementById('age').value);
+  const egfr      = parseFloat(document.getElementById('egfr').value);
+  const a1c       = document.getElementById('hgba1c').value;
+  const ctx       = document.getElementById('meal_ctx').value;
+  const carbs     = parseFloat(document.getElementById('carbs').value);
+  const override  = document.getElementById('intensity_override').value;
+  const special   = document.getElementById('special').value;
+  const basalDose = parseFloat(document.getElementById('basal_dose').value);
+  const bolusDose = parseFloat(document.getElementById('bolus_dose').value);
+
+  if (isNaN(bg) || isNaN(age) || isNaN(egfr)) {
+    alert('Please enter Blood Glucose, Age, and eGFR to continue.');
+    return;
+  }
+
+  /* ── Target BG ── */
+  const elderly  = age > 70;
+  const targetBG = elderly ? 150 : 140;
+
+  /* ── Intensity ── */
+  let intensity;
+  if (override !== 'auto') {
+    intensity = override;
+  } else if (special === 'icu') {
+    intensity = 'high';
+  } else if (age > 70 || egfr < 35) {
+    intensity = 'custom_low';
+  } else if (egfr < 60) {
+    intensity = 'low';
+  } else {
+    intensity = 'standard';
+  }
+
+  /* ── Correction Dose ── */
+  const aboveTarget = Math.max(0, bg - targetBG);
+  const INTENSITY_MAP = {
+    high:       { div: [20, 30],  label: 'HIGH',       cls: 'stat-high',     desc: '1 unit per 20–30 mg/dL above target' },
+    standard:   { div: [30, 40],  label: 'STANDARD',   cls: 'stat-standard', desc: '1 unit per 30–40 mg/dL above target' },
+    low:        { div: [50, 60],  label: 'LOW',         cls: 'stat-low',      desc: '1 unit per 50–60 mg/dL above target' },
+    custom_low: { div: [80, 100], label: 'CUSTOM LOW',  cls: 'stat-custom',   desc: '1 unit per 80–100 mg/dL above target (age >70 or eGFR <35)' },
+  };
+  const iMap = INTENSITY_MAP[intensity];
+  const doseMin = Math.round(aboveTarget / iMap.div[1]);
+  const doseMax = Math.round(aboveTarget / iMap.div[0]);
+  const doseText = doseMin === doseMax
+    ? `${doseMin} unit${doseMin !== 1 ? 's' : ''}`
+    : `${doseMin}–${doseMax} units`;
+
+  /* ═══════════════════════════════════════
+     1. ALERTS
+  ═══════════════════════════════════════ */
+  let alertsHTML = '';
+
+  if (bg < 70) {
+    alertsHTML += alert_('danger', '🚨', '<strong>Hypoglycemia (BG &lt;70):</strong> Do NOT give correction insulin. Initiate hypoglycemia protocol. Reduce basal and/or bolus insulin per Table 1.');
+  } else if (bg <= 100) {
+    alertsHTML += alert_('warning', '⚠️', '<strong>Low BG (70–100 mg/dL):</strong> Reduce basal and/or bolus per Table 1. No correction insulin needed.');
+  } else if (bg > 200) {
+    alertsHTML += alert_('warning', '📈', `<strong>Elevated BG (${bg} mg/dL):</strong> Consider increasing basal and/or bolus per Table 1 in addition to correction dose.`);
+  }
+
+  if (elderly) {
+    alertsHTML += alert_('info', '👤', '<strong>Age &gt;70:</strong> Target BG 150–180 mg/dL. Custom Low or Low correction scale recommended. Monitor closely for hypoglycemia. Use caution with sulfonylureas.');
+  }
+  if (egfr < 30) {
+    alertsHTML += alert_('warning', '🔬', '<strong>eGFR &lt;30:</strong> Avoid sulfonylureas and metformin. Use Custom Low correction scale. Monitor BMP every 2 days. Consider endocrinology consult. Avoid SGLT2 inhibitors.');
+  } else if (egfr < 60) {
+    alertsHTML += alert_('info', '🔬', '<strong>eGFR 30–59:</strong> Use Low or Standard correction scale. Monitor BMP every 3 days. Adjust sitagliptin to 50 mg (eGFR 30–59) or 25 mg (eGFR &lt;30). Saxagliptin: 2.5 mg if eGFR &lt;60.');
+  }
+  if (special === 'icu') {
+    alertsHTML += alert_('warning', '🏥', '<strong>ICU / Critically Ill:</strong> High intensity correction scale applied. Consider IV insulin infusion if patient cannot take oral intake. Goal BG: 140–180 mg/dL.');
+  }
+  if (special === 'steroids') {
+    alertsHTML += alert_('warning', '💊', '<strong>Corticosteroids:</strong> May require higher basal and bolus insulin doses. Monitor BG closely and consider increasing correction scale intensity.');
+  }
+  if (special === 'liver') {
+    alertsHTML += alert_('info', '🫀', '<strong>Hepatic Impairment:</strong> Use Standard or Low correction scale. Monitor glucose closely. Avoid metformin if ALT/AST &gt;3× ULN. Consider endocrinology consult for complex cases.');
+  }
+  if (special === 'hf') {
+    alertsHTML += alert_('info', '❤️', '<strong>Heart Failure:</strong> Metformin contraindicated in acute decompensation. Use Standard or Low correction scale. Avoid SGLT2 inhibitors if acute decompensation.');
+  }
+
+  document.getElementById('alerts-wrap').innerHTML = alertsHTML;
+
+  /* ═══════════════════════════════════════
+     2. CORRECTION SCALE
+  ═══════════════════════════════════════ */
+  let corrHTML = '';
+
+  if (bg < 70) {
+    corrHTML = `<div class="alert alert-danger">🚫 <strong>Correction insulin NOT indicated</strong> — BG is below 70 mg/dL. Treat hypoglycemia first.</div>`;
+  } else if (bg <= targetBG) {
+    corrHTML = `<div class="alert alert-success">✅ <strong>No correction insulin needed</strong> — BG (${bg} mg/dL) is at or below target (${targetBG} mg/dL).</div>`;
+  } else {
+    corrHTML = `
+      <div class="result-row">
+        <div class="stat-card ${iMap.cls}">
+          <div class="sc-label">Correction Scale Intensity</div>
+          <div class="sc-value">${iMap.label}</div>
+          <div class="sc-sub">${iMap.desc}</div>
+        </div>
+        <div class="stat-card stat-neutral">
+          <div class="sc-label">Recommended Correction Dose</div>
+          <div class="sc-value" style="color:#1a3a5c;">${doseText}</div>
+          <div class="sc-sub">
+            BG ${bg} − Target ${targetBG} = <strong>${aboveTarget} mg/dL</strong> above target<br>
+            Target range: ${targetBG}–180 mg/dL${elderly ? ' (age >70 population)' : ''}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Intensity reference mini-table
+  corrHTML += `
+    <div style="margin-top:6px;">
+      <div style="font-size:0.72rem;font-weight:700;color:#4a5568;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">All Intensity Levels — Reference</div>
+      <table class="adj-table">
+        <thead><tr><th>Intensity</th><th>Formula</th><th>Population</th></tr></thead>
+        <tbody>
+          <tr ${intensity==='high' ? 'class="hl-row"' : ''}><td><strong>High</strong></td><td>1 unit / 20–30 mg/dL above target</td><td>ICU / critically ill</td></tr>
+          <tr ${intensity==='standard' ? 'class="hl-row"' : ''}><td><strong>Standard</strong></td><td>1 unit / 30–40 mg/dL above target</td><td>General population, eGFR ≥60</td></tr>
+          <tr ${intensity==='low' ? 'class="hl-row"' : ''}><td><strong>Low</strong></td><td>1 unit / 50–60 mg/dL above target</td><td>eGFR 30–59</td></tr>
+          <tr ${intensity==='custom_low' ? 'class="hl-row"' : ''}><td><strong>Custom Low</strong></td><td>1 unit / 80–100 mg/dL above target</td><td>Age &gt;70 <em>or</em> eGFR &lt;35</td></tr>
+        </tbody>
+      </table>
+      <p class="table-note">Highlighted row = applied to this patient. Pharmacist may override intensity above.</p>
+    </div>`;
+
+  document.getElementById('correction-content').innerHTML = corrHTML;
+
+  /* ═══════════════════════════════════════
+     3. INSULIN ADJUSTMENT (Table 1)
+  ═══════════════════════════════════════ */
+
+  // Per policy: Morning Fasting BG → adjust BASAL; Pre-meal / Bedtime → adjust BOLUS
+  const adjustBasal  = (ctx === 'morning_fasting');
+  const adjTypeLabel = adjustBasal ? 'Basal' : 'Bolus';
+  const currentDose  = adjustBasal ? basalDose : bolusDose;
+  const hasDose      = !isNaN(currentDose);
+
+  // Find the matching adjustment row for current BG
+  const matchRow = ADJ_ROWS.find(r => r.test(bg));
+  const adjStr   = adjustBasal ? matchRow.basal : matchRow.bolus;
+
+  // Parse adjustment text into numeric delta
+  function parseAdj(str) {
+    if (str.includes('No change')) return { type: 'none', min: 0, max: 0 };
+    const m = str.match(/(\d+)[–\-](\d+)/);
+    if (!m) return { type: 'none', min: 0, max: 0 };
+    return {
+      type: str.includes('Decrease') ? 'decrease' : 'increase',
+      min: parseInt(m[1]), max: parseInt(m[2]),
+    };
+  }
+  const adj = parseAdj(adjStr);
+
+  // Calculate new dose
+  let newDoseMin, newDoseMax, doseChangeType;
+  if (adj.type === 'none') {
+    newDoseMin = newDoseMax = hasDose ? currentDose : null;
+    doseChangeType = 'none';
+  } else if (adj.type === 'decrease') {
+    newDoseMin = hasDose ? Math.max(0, currentDose - adj.max) : null;
+    newDoseMax = hasDose ? Math.max(0, currentDose - adj.min) : null;
+    doseChangeType = 'decrease';
+  } else {
+    newDoseMin = hasDose ? currentDose + adj.min : null;
+    newDoseMax = hasDose ? currentDose + adj.max : null;
+    doseChangeType = 'increase';
+  }
+
+  const newDoseText = (newDoseMin !== null)
+    ? (newDoseMin === newDoseMax ? `${newDoseMin}` : `${newDoseMin}–${newDoseMax}`)
+    : '—';
+
+  const newBoxCls = doseChangeType === 'decrease' ? 'dose-box-new-dec' : 'dose-box-new';
+
+  let adjHTML = '';
+
+  // Context badge
+  adjHTML += `
+    <div class="context-badge${adjustBasal ? ' basal' : ''}">
+      ${adjustBasal ? '🌙' : '🍽️'}
+      <span>${mealLabel(ctx)} BG → Adjust <strong>${adjTypeLabel} Insulin</strong></span>
+    </div>`;
+
+  // Reason note
+  if (adjustBasal) {
+    adjHTML += `<p style="font-size:0.79rem;color:#718096;margin-bottom:14px;">Morning fasting glucose reflects overnight basal insulin effectiveness — basal dose is adjusted.</p>`;
+  } else {
+    adjHTML += `<p style="font-size:0.79rem;color:#718096;margin-bottom:14px;">Pre-meal / bedtime glucose reflects bolus insulin effectiveness at that meal — bolus dose is adjusted.</p>`;
+  }
+
+  // Dose result strip
+  adjHTML += `<div class="dose-strip">`;
+
+  // Current dose box
+  adjHTML += `
+    <div class="dose-box dose-box-current">
+      <div class="db-label">Current ${adjTypeLabel} Dose</div>
+      <div class="db-value">${hasDose ? currentDose : '—'}</div>
+      <div class="db-unit">units${adjustBasal ? '/day' : '/dose'}</div>
+    </div>`;
+
+  // Arrow + adjustment label
+  adjHTML += `
+    <div style="text-align:center;">
+      <div class="dose-arrow">${doseChangeType === 'decrease' ? '⬇️' : doseChangeType === 'increase' ? '⬆️' : '➡️'}</div>
+      <div style="font-size:0.73rem;font-weight:700;color:#4a5568;margin-top:4px;">${adjStr.replace(/[↓↑—]\s*/,'')}</div>
+    </div>`;
+
+  // New dose box
+  adjHTML += `
+    <div class="dose-box ${newBoxCls}">
+      <div class="db-label">Recommended New ${adjTypeLabel} Dose</div>
+      <div class="db-value">${newDoseText}</div>
+      <div class="db-unit">units${adjustBasal ? '/day' : '/dose'}${!hasDose ? ' — enter current dose above' : ''}</div>
+    </div>`;
+
+  adjHTML += `</div>`; // /dose-strip
+
+  // Confirm callout if we have a dose
+  if (hasDose && adj.type !== 'none') {
+    const verb = doseChangeType === 'decrease' ? 'Decrease' : 'Increase';
+    adjHTML += `
+      <div class="alert alert-${doseChangeType === 'decrease' ? 'warning' : 'success'}" style="margin-bottom:14px;">
+        ${doseChangeType === 'decrease' ? '⬇️' : '⬆️'} <strong>${verb} ${adjTypeLabel.toLowerCase()} from ${currentDose} → ${newDoseText} units${adjustBasal ? '/day' : '/dose'}</strong>
+        (${adj.type === 'decrease' ? `reduce by ${adj.min}–${adj.max}` : `increase by ${adj.min}–${adj.max}`} units per policy)
+      </div>`;
+  } else if (hasDose && adj.type === 'none') {
+    adjHTML += `<div class="alert alert-success" style="margin-bottom:14px;">✅ <strong>No change needed</strong> — maintain current ${adjTypeLabel.toLowerCase()} dose of ${currentDose} units${adjustBasal ? '/day' : '/dose'}.</div>`;
+  }
+
+  // Full reference table — dim the non-applicable column
+  adjHTML += `
+    <div style="margin-top:4px;">
+      <div style="font-size:0.72rem;font-weight:700;color:#4a5568;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">Full Table 1 — Reference</div>
+      <table class="adj-table">
+        <thead>
+          <tr>
+            <th>BG Range</th>
+            <th${adjustBasal ? '' : ' class="dim"'}>Basal Adjustment <span style="font-weight:400;">(Morning Fasting)</span></th>
+            <th${adjustBasal ? ' class="dim"' : ''}>Bolus Adjustment <span style="font-weight:400;">(Pre-meal / Bedtime)</span></th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+  ADJ_ROWS.forEach(row => {
+    const active = row.test(bg);
+    adjHTML += `
+      <tr${active ? ' class="hl-row"' : ''}>
+        <td>${row.label}${active ? ' ◀' : ''}</td>
+        <td${adjustBasal ? '' : ' class="dim"'}>${row.basal}</td>
+        <td${adjustBasal ? ' class="dim"' : ''}>${row.bolus}</td>
+      </tr>`;
+  });
+
+  adjHTML += `
+        </tbody>
+      </table>
+      <p class="table-note">Active column is highlighted. Dimmed column does not apply to this BG reading context.</p>
+    </div>`;
+
+  document.getElementById('adjustment-content').innerHTML = adjHTML;
+
+  /* ═══════════════════════════════════════
+     4. BOLUS LISPRO (Table 4)
+  ═══════════════════════════════════════ */
+  const hasCarbs = !isNaN(carbs) && carbs > 0;
+  const hasA1c   = !!a1c;
+
+  if (hasCarbs || hasA1c) {
+    document.getElementById('bolus-card').style.display = 'block';
+
+    const carbIdx = hasCarbs ? findCarbIdx(carbs) : -1;
+    const A1C_COLS = ['lt7','7to8','8to9','gt9'];
+    const A1C_LABELS = ['HgbA1c &lt;7%','HgbA1c 7–8%','HgbA1c 8–9%','HgbA1c &gt;9%'];
+
+    let bolusHTML = '';
+
+    if (!hasA1c) {
+      bolusHTML += `<div class="alert alert-info" style="margin-bottom:12px;">Select HgbA1c above to highlight the recommended column.</div>`;
+    }
+
+    bolusHTML += `<table class="bolus-table"><thead><tr>
+      <th>Carbs (g)</th>
+      <th>${A1C_LABELS[0]}</th>
+      <th>${A1C_LABELS[1]}</th>
+      <th>${A1C_LABELS[2]}</th>
+      <th>${A1C_LABELS[3]}</th>
+    </tr></thead><tbody>`;
+
+    CARB_ROWS.forEach((chog, ri) => {
+      const rowHL = (ri === carbIdx);
+      bolusHTML += `<tr>`;
+      bolusHTML += `<td style="${rowHL ? 'font-weight:700;' : ''}">${chog}g${rowHL ? ' ◀' : ''}</td>`;
+      A1C_COLS.forEach((col, ci) => {
+        const colHL = (col === a1c);
+        const both  = rowHL && colHL;
+        const cls   = both ? 'hl' : rowHL ? 'hl-row-only' : colHL ? 'hl-col-only' : '';
+        bolusHTML += `<td class="${cls}">${BOLUS_TABLE[col][ri]} u</td>`;
+      });
+      bolusHTML += `</tr>`;
+    });
+
+    bolusHTML += `</tbody></table>`;
+    bolusHTML += `<p class="table-note">◀ Row = entered carb amount. Shaded column = selected HgbA1c. Dark cell = intersection (recommended dose).</p>`;
+
+    // Summary callout
+    if (hasA1c && carbIdx >= 0) {
+      const dose = BOLUS_TABLE[a1c][carbIdx];
+      bolusHTML += `
+        <div class="alert alert-success" style="margin-top:14px;">
+          💉 <strong>Recommended bolus lispro:</strong> <strong>${dose} units</strong> &nbsp;—&nbsp;
+          for ~${CARB_ROWS[carbIdx]}g CHO with HgbA1c ${a1cLabel(a1c)}
+        </div>`;
+    } else if (hasCarbs && carbIdx < 0) {
+      bolusHTML += `<div class="alert alert-warning" style="margin-top:14px;">⚠️ Carbohydrate amount (${carbs}g) is outside the standard table range. Interpolate between the nearest values, or consult the full policy.</div>`;
+    }
+
+    document.getElementById('bolus-content').innerHTML = bolusHTML;
+  } else {
+    document.getElementById('bolus-card').style.display = 'none';
+  }
+
+  /* ── Show results ── */
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ── Utility ── */
+function alert_(type, icon, msg) {
+  return `<div class="alert alert-${type}">${icon} ${msg}</div>`;
+}
+</script>
+</body>
+</html>
