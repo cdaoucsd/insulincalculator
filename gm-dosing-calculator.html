@@ -429,12 +429,11 @@ const BOLUS_TABLE = {
 };
 const CARB_ROWS = [15, 30, 45, 60, 75, 90];
 
-const ADJ_ROWS = [
-  { label: '< 70 mg/dL',    basal: '↓ Decrease by 2–4 units', bolus: '↓ Decrease by 1–2 units', test: bg => bg < 70 },
-  { label: '70–100 mg/dL',  basal: '— No change',             bolus: '↓ Decrease by 0–1 units', test: bg => bg >= 70 && bg <= 100 },
-  { label: '101–150 mg/dL', basal: '↑ Increase by 2–4 units', bolus: '— No change',              test: bg => bg >= 101 && bg <= 150 },
-  { label: '151–200 mg/dL', basal: '↑ Increase by 4–6 units', bolus: '↑ Increase by 1–2 units',  test: bg => bg >= 151 && bg <= 200 },
-  { label: '> 200 mg/dL',   basal: '↑ Increase by 6–10 units',bolus: '↑ Increase by 2–4 units',  test: bg => bg > 200 },
+// TABLE 1: Insulin Dose Adjustments — percentage-based, applies only when BG ≤ 100 mg/dL
+const TABLE1_ROWS = [
+  { label: '≤54 mg/dL',    pct: 50, test: bg => bg <= 54 },
+  { label: '55–69 mg/dL',  pct: 20, test: bg => bg >= 55 && bg <= 69 },
+  { label: '70–100 mg/dL', pct: 10, note: 'Risk factor for future hypoglycemia', test: bg => bg >= 70 && bg <= 100 },
 ];
 
 /* ─────────────────────────────────────────
@@ -593,136 +592,136 @@ function calculate() {
 
   /* ═══════════════════════════════════════
      3. INSULIN ADJUSTMENT (Table 1)
+     Applies only when BG ≤ 100 mg/dL.
+     Uses percentage-based dose reduction.
+     Morning Fasting → adjust Basal
+     Pre-Lunch / Pre-Dinner / Bedtime → adjust Bolus (prior meal or dinner)
   ═══════════════════════════════════════ */
 
-  // Per policy: Morning Fasting BG → adjust BASAL; Pre-meal / Bedtime → adjust BOLUS
   const adjustBasal  = (ctx === 'morning_fasting');
   const adjTypeLabel = adjustBasal ? 'Basal' : 'Bolus';
   const currentDose  = adjustBasal ? basalDose : bolusDose;
-  const hasDose      = !isNaN(currentDose);
+  const hasDose      = !isNaN(currentDose) && currentDose >= 0;
 
-  // Find the matching adjustment row for current BG
-  const matchRow = ADJ_ROWS.find(r => r.test(bg));
-  const adjStr   = adjustBasal ? matchRow.basal : matchRow.bolus;
-
-  // Parse adjustment text into numeric delta
-  function parseAdj(str) {
-    if (str.includes('No change')) return { type: 'none', min: 0, max: 0 };
-    const m = str.match(/(\d+)[–\-](\d+)/);
-    if (!m) return { type: 'none', min: 0, max: 0 };
-    return {
-      type: str.includes('Decrease') ? 'decrease' : 'increase',
-      min: parseInt(m[1]), max: parseInt(m[2]),
-    };
-  }
-  const adj = parseAdj(adjStr);
-
-  // Calculate new dose
-  let newDoseMin, newDoseMax, doseChangeType;
-  if (adj.type === 'none') {
-    newDoseMin = newDoseMax = hasDose ? currentDose : null;
-    doseChangeType = 'none';
-  } else if (adj.type === 'decrease') {
-    newDoseMin = hasDose ? Math.max(0, currentDose - adj.max) : null;
-    newDoseMax = hasDose ? Math.max(0, currentDose - adj.min) : null;
-    doseChangeType = 'decrease';
-  } else {
-    newDoseMin = hasDose ? currentDose + adj.min : null;
-    newDoseMax = hasDose ? currentDose + adj.max : null;
-    doseChangeType = 'increase';
-  }
-
-  const newDoseText = (newDoseMin !== null)
-    ? (newDoseMin === newDoseMax ? `${newDoseMin}` : `${newDoseMin}–${newDoseMax}`)
-    : '—';
-
-  const newBoxCls = doseChangeType === 'decrease' ? 'dose-box-new-dec' : 'dose-box-new';
+  // Find matching Table 1 row (only ≤100 mg/dL)
+  const t1Row      = TABLE1_ROWS.find(r => r.test(bg));
+  const inT1Range  = !!t1Row;
 
   let adjHTML = '';
 
-  // Context badge
-  adjHTML += `
-    <div class="context-badge${adjustBasal ? ' basal' : ''}">
-      ${adjustBasal ? '🌙' : '🍽️'}
-      <span>${mealLabel(ctx)} BG → Adjust <strong>${adjTypeLabel} Insulin</strong></span>
-    </div>`;
-
-  // Reason note
-  if (adjustBasal) {
-    adjHTML += `<p style="font-size:0.79rem;color:#718096;margin-bottom:14px;">Morning fasting glucose reflects overnight basal insulin effectiveness — basal dose is adjusted.</p>`;
-  } else {
-    adjHTML += `<p style="font-size:0.79rem;color:#718096;margin-bottom:14px;">Pre-meal / bedtime glucose reflects bolus insulin effectiveness at that meal — bolus dose is adjusted.</p>`;
-  }
-
-  // Dose result strip
-  adjHTML += `<div class="dose-strip">`;
-
-  // Current dose box
-  adjHTML += `
-    <div class="dose-box dose-box-current">
-      <div class="db-label">Current ${adjTypeLabel} Dose</div>
-      <div class="db-value">${hasDose ? currentDose : '—'}</div>
-      <div class="db-unit">units${adjustBasal ? '/day' : '/dose'}</div>
-    </div>`;
-
-  // Arrow + adjustment label
-  adjHTML += `
-    <div style="text-align:center;">
-      <div class="dose-arrow">${doseChangeType === 'decrease' ? '⬇️' : doseChangeType === 'increase' ? '⬆️' : '➡️'}</div>
-      <div style="font-size:0.73rem;font-weight:700;color:#4a5568;margin-top:4px;">${adjStr.replace(/[↓↑—]\s*/,'')}</div>
-    </div>`;
-
-  // New dose box
-  adjHTML += `
-    <div class="dose-box ${newBoxCls}">
-      <div class="db-label">Recommended New ${adjTypeLabel} Dose</div>
-      <div class="db-value">${newDoseText}</div>
-      <div class="db-unit">units${adjustBasal ? '/day' : '/dose'}${!hasDose ? ' — enter current dose above' : ''}</div>
-    </div>`;
-
-  adjHTML += `</div>`; // /dose-strip
-
-  // Confirm callout if we have a dose
-  if (hasDose && adj.type !== 'none') {
-    const verb = doseChangeType === 'decrease' ? 'Decrease' : 'Increase';
+  if (!inT1Range) {
+    // BG > 100: Table 1 does not apply
     adjHTML += `
-      <div class="alert alert-${doseChangeType === 'decrease' ? 'warning' : 'success'}" style="margin-bottom:14px;">
-        ${doseChangeType === 'decrease' ? '⬇️' : '⬆️'} <strong>${verb} ${adjTypeLabel.toLowerCase()} from ${currentDose} → ${newDoseText} units${adjustBasal ? '/day' : '/dose'}</strong>
-        (${adj.type === 'decrease' ? `reduce by ${adj.min}–${adj.max}` : `increase by ${adj.min}–${adj.max}`} units per policy)
+      <div class="alert alert-info">
+        ℹ️ <strong>Table 1 does not apply</strong> — BG of ${bg} mg/dL is above 100 mg/dL.
+        For elevated BG, use the <strong>Correction Scale (Table 2)</strong> above for correction dosing.
+        Scheduled basal and bolus dose titration for persistently elevated BG should be guided by clinical judgment and discussion with the provider.
       </div>`;
-  } else if (hasDose && adj.type === 'none') {
-    adjHTML += `<div class="alert alert-success" style="margin-bottom:14px;">✅ <strong>No change needed</strong> — maintain current ${adjTypeLabel.toLowerCase()} dose of ${currentDose} units${adjustBasal ? '/day' : '/dose'}.</div>`;
-  }
+  } else {
+    const pct     = t1Row.pct;
+    const newDose = hasDose ? Math.round(currentDose * (1 - pct / 100)) : null;
 
-  // Full reference table — dim the non-applicable column
-  adjHTML += `
-    <div style="margin-top:4px;">
-      <div style="font-size:0.72rem;font-weight:700;color:#4a5568;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">Full Table 1 — Reference</div>
-      <table class="adj-table">
-        <thead>
-          <tr>
-            <th>BG Range</th>
-            <th${adjustBasal ? '' : ' class="dim"'}>Basal Adjustment <span style="font-weight:400;">(Morning Fasting)</span></th>
-            <th${adjustBasal ? ' class="dim"' : ''}>Bolus Adjustment <span style="font-weight:400;">(Pre-meal / Bedtime)</span></th>
-          </tr>
-        </thead>
-        <tbody>`;
-
-  ADJ_ROWS.forEach(row => {
-    const active = row.test(bg);
+    // Context badge
     adjHTML += `
-      <tr${active ? ' class="hl-row"' : ''}>
-        <td>${row.label}${active ? ' ◀' : ''}</td>
-        <td${adjustBasal ? '' : ' class="dim"'}>${row.basal}</td>
-        <td${adjustBasal ? ' class="dim"' : ''}>${row.bolus}</td>
-      </tr>`;
-  });
+      <div class="context-badge${adjustBasal ? ' basal' : ''}">
+        ${adjustBasal ? '🌙' : '🍽️'}
+        <span>${mealLabel(ctx)} BG → Adjust <strong>${adjTypeLabel} Insulin</strong></span>
+      </div>`;
 
-  adjHTML += `
-        </tbody>
-      </table>
-      <p class="table-note">Active column is highlighted. Dimmed column does not apply to this BG reading context.</p>
-    </div>`;
+    // Context reason
+    if (ctx === 'morning_fasting') {
+      adjHTML += `<p style="font-size:0.79rem;color:#718096;margin-bottom:14px;">Morning fasting BG reflects overnight basal effectiveness — reduce the <strong>basal</strong> insulin dose.</p>`;
+    } else if (ctx === 'lunch') {
+      adjHTML += `<p style="font-size:0.79rem;color:#718096;margin-bottom:14px;">Pre-lunch BG reflects the breakfast bolus — reduce the <strong>breakfast (prior meal) bolus</strong> dose.</p>`;
+    } else if (ctx === 'dinner') {
+      adjHTML += `<p style="font-size:0.79rem;color:#718096;margin-bottom:14px;">Pre-dinner BG reflects the lunch bolus — reduce the <strong>lunch (prior meal) bolus</strong> dose.</p>`;
+    } else if (ctx === 'bedtime') {
+      adjHTML += `<p style="font-size:0.79rem;color:#718096;margin-bottom:14px;">Bedtime BG reflects the dinner bolus — reduce the <strong>dinner meal bolus</strong> dose.</p>`;
+    } else {
+      adjHTML += `<p style="font-size:0.79rem;color:#718096;margin-bottom:14px;">BG reflects bolus insulin effectiveness — reduce the <strong>prior bolus</strong> dose.</p>`;
+    }
+
+    // Dose result strip
+    adjHTML += `<div class="dose-strip">`;
+
+    // Current dose box
+    adjHTML += `
+      <div class="dose-box dose-box-current">
+        <div class="db-label">Current ${adjTypeLabel} Dose</div>
+        <div class="db-value">${hasDose ? currentDose : '—'}</div>
+        <div class="db-unit">units${adjustBasal ? '/day' : '/dose'}</div>
+      </div>`;
+
+    // Arrow + reduction label
+    adjHTML += `
+      <div style="text-align:center;">
+        <div class="dose-arrow">⬇️</div>
+        <div style="font-size:0.8rem;font-weight:800;color:#e65100;margin-top:4px;">Reduce by ${pct}%</div>
+        <div style="font-size:0.7rem;color:#718096;margin-top:2px;">× ${((100 - pct) / 100).toFixed(2)}</div>
+      </div>`;
+
+    // New dose box
+    adjHTML += `
+      <div class="dose-box dose-box-new-dec">
+        <div class="db-label">New ${adjTypeLabel} Dose</div>
+        <div class="db-value">${newDose !== null ? newDose : '—'}</div>
+        <div class="db-unit">units${adjustBasal ? '/day' : '/dose'}${!hasDose ? '<br>enter current dose above' : ''}</div>
+      </div>`;
+
+    adjHTML += `</div>`; // /dose-strip
+
+    // Summary callout
+    if (hasDose) {
+      adjHTML += `
+        <div class="alert alert-warning" style="margin-bottom:14px;">
+          ⬇️ <strong>Reduce ${adjTypeLabel.toLowerCase()} from ${currentDose} → ${newDose} units${adjustBasal ? '/day' : '/dose'}</strong>
+          &nbsp;(${pct}% reduction per Table 1)
+          ${t1Row.note ? `<br><span style="font-size:0.78rem;opacity:0.85;">Note: ${t1Row.note}</span>` : ''}
+        </div>`;
+      if (adjustBasal) {
+        adjHTML += `
+          <div class="alert alert-info" style="margin-bottom:14px; font-size:0.8rem;">
+            📋 <strong>Basal type note:</strong> If basal is given more than once daily —
+            <strong>Glargine:</strong> reduce total daily dose and redistribute with same frequency.
+            <strong>NPH:</strong> reduce the bedtime/dinner dose only.
+          </div>`;
+      }
+    }
+
+    // Full reference table
+    adjHTML += `
+      <div style="margin-top:8px;">
+        <div style="font-size:0.72rem;font-weight:700;color:#4a5568;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">Table 1 — Full Reference (Low / Hypoglycemic BG)</div>
+        <table class="adj-table">
+          <thead>
+            <tr>
+              <th>BG (mg/dL)</th>
+              <th${adjustBasal ? '' : ' class="dim"'}>Fasting Morning BG → Basal</th>
+              <th${adjustBasal ? ' class="dim"' : ''}>Pre-Lunch / Pre-Dinner BG → Prior Meal Bolus</th>
+              <th${adjustBasal ? ' class="dim"' : ''}>Bedtime BG → Dinner Bolus</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+    TABLE1_ROWS.forEach(row => {
+      const active = row.test(bg);
+      const newVal = hasDose ? Math.round(currentDose * (1 - row.pct / 100)) : null;
+      const doseHint = (hasDose && active) ? ` <span style="font-size:0.75rem;opacity:0.75;">(→ ${newVal} u)</span>` : '';
+      adjHTML += `
+        <tr${active ? ' class="hl-row"' : ''}>
+          <td>${row.label}${active ? ' ◀' : ''}${row.note ? `<br><span style="font-size:0.7rem;color:#718096;">${row.note}</span>` : ''}</td>
+          <td${adjustBasal ? '' : ' class="dim"'}>Reduce by ${row.pct}%${adjustBasal && active ? doseHint : ''}</td>
+          <td${adjustBasal ? ' class="dim"' : ''}>Reduce by ${row.pct}%${!adjustBasal && active && ctx !== 'bedtime' ? doseHint : ''}</td>
+          <td${adjustBasal ? ' class="dim"' : ''}>Reduce by ${row.pct}%${!adjustBasal && active && ctx === 'bedtime' ? doseHint : ''}</td>
+        </tr>`;
+    });
+
+    adjHTML += `
+          </tbody>
+        </table>
+        <p class="table-note">Table 1 applies only when BG ≤ 100 mg/dL. Highlighted row = current patient BG. Dimmed columns do not apply to this context. Round to nearest whole number (≥0.5 round up).</p>
+      </div>`;
+  }
 
   document.getElementById('adjustment-content').innerHTML = adjHTML;
 
